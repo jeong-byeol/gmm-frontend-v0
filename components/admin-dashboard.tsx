@@ -18,6 +18,7 @@ import {
   Edit,
   Trash2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface DashboardStats {
   totalRevenue: number
@@ -76,7 +77,7 @@ const mockGyms: GymData[] = [
 export function AdminDashboard() {
   const [stats] = useState<DashboardStats>(mockStats)
   const [gyms] = useState<GymData[]>(mockGyms)
-
+  const router = useRouter()
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
@@ -99,8 +100,7 @@ export function AdminDashboard() {
           <p className="text-muted-foreground">헬스장 운영 현황과 수익을 한눈에 확인하세요</p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-primary hover:bg-primary/90">새 헬스장 등록</Button>
-          <Button variant="outline">리포트 다운로드</Button>
+          <Button className="bg-primary hover:bg-primary/90" onClick={() => router.push("/admin/register-gym")}>새 헬스장 등록</Button>
         </div>
       </div>
 

@@ -1,78 +1,45 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Search, Star, Dumbbell, Zap } from "lucide-react"
-
-interface Gym {
-  id: string
-  name: string
-  address: string
-  rating: number
-  distance: string
-  price: {
-    monthly: number
-    pt: number
-  }
-  features: string[]
-  type: "gym" | "pt"
-  image: string
-  available: boolean
-}
-
-const mockGyms: Gym[] = [
-  {
-    id: "1",
-    name: "스트롱 피트니스",
-    address: "서울시 강남구 테헤란로 123",
-    rating: 4.8,
-    distance: "0.5km",
-    price: { monthly: 89000, pt: 150000 },
-    features: ["24시간", "샤워실", "주차장", "개인 트레이닝"],
-    type: "gym",
-    image: "/modern-gym-interior.png",
-    available: true,
-  },
-  {
-    id: "2",
-    name: "프리미엄 PT 스튜디오",
-    address: "서울시 강남구 역삼동 456",
-    rating: 4.9,
-    distance: "0.8km",
-    price: { monthly: 0, pt: 200000 },
-    features: ["개인 트레이닝 전문", "영양 상담", "체성분 분석"],
-    type: "pt",
-    image: "/personal-training-studio.jpg",
-    available: true,
-  },
-  {
-    id: "3",
-    name: "파워 짐",
-    address: "서울시 서초구 서초대로 789",
-    rating: 4.6,
-    distance: "1.2km",
-    price: { monthly: 75000, pt: 120000 },
-    features: ["웨이트 전문", "그룹 수업", "사우나"],
-    type: "gym",
-    image: "/weight-training-gym.jpg",
-    available: false,
-  },
-]
+import { Input } from "@/components/ui/input"
+import { MapPin, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export function GymSearch() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedType, setSelectedType] = useState<"all" | "gym" | "pt">("all")
-  const [gyms] = useState<Gym[]>(mockGyms)
+  const [gyms, setGyms] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  // 상세보기 토글 상태: 선택된 헬스장의 gym_id 저장
+  const [expandedGymId, setExpandedGymId] = useState<string | null>(null)
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        setIsLoading(true)
+        const res = await fetch("/api/gyms")
+        const json = await res.json()
+        if (res.ok) {
+          setGyms(json.gyms || [])
+        } else {
+          console.error(json.error)
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setIsLoading(false)
+      }
+    })()
+  }, [])
 
   const filteredGyms = gyms.filter((gym) => {
     const matchesSearch =
-      gym.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      gym.address.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesType = selectedType === "all" || gym.type === selectedType
-    return matchesSearch && matchesType
+      (gym.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (gym.address || "").toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesSearch
   })
 
   return (
@@ -90,31 +57,6 @@ export function GymSearch() {
                 className="pl-10 bg-input/50 border-border/50"
               />
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={selectedType === "all" ? "default" : "outline"}
-                onClick={() => setSelectedType("all")}
-                className="bg-primary hover:bg-primary/90"
-              >
-                전체
-              </Button>
-              <Button
-                variant={selectedType === "gym" ? "default" : "outline"}
-                onClick={() => setSelectedType("gym")}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <Dumbbell className="mr-2 h-4 w-4" />
-                헬스장
-              </Button>
-              <Button
-                variant={selectedType === "pt" ? "default" : "outline"}
-                onClick={() => setSelectedType("pt")}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <Zap className="mr-2 h-4 w-4" />
-                PT 전용
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -123,80 +65,97 @@ export function GymSearch() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredGyms.map((gym) => (
           <Card
-            key={gym.id}
+            key={gym.gym_id}
             className="backdrop-blur-sm bg-card/80 border-border/50 hover:shadow-lg transition-all duration-300 overflow-hidden"
           >
-            <div className="relative">
-              <img src={gym.image || "/placeholder.svg"} alt={gym.name} className="w-full h-48 object-cover" />
-              {!gym.available && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <Badge variant="destructive" className="text-sm">
-                    매진
-                  </Badge>
-                </div>
-              )}
-              <div className="absolute top-2 right-2">
-                <Badge variant="secondary" className="bg-background/80 text-foreground">
-                  {gym.type === "pt" ? "PT 전용" : "헬스장"}
-                </Badge>
-              </div>
-            </div>
-
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg font-bold">{gym.name}</CardTitle>
+                  {gym.Brands?.name && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>브랜드: {gym.Brands.name}</span>
+                      {typeof gym.Brands?.is_sale === "boolean" && (
+                        <Badge variant={gym.Brands.is_sale ? "secondary" : "outline"}>
+                          {gym.Brands.is_sale ? "재판매 가능" : "재판매 불가"}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                   <CardDescription className="flex items-center gap-1 mt-1">
                     <MapPin className="h-3 w-3" />
                     {gym.address}
                   </CardDescription>
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold">{gym.rating}</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">{gym.distance}</span>
-                </div>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-1">
-                {gym.features.map((feature, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
-                    {feature}
-                  </Badge>
-                ))}
-              </div>
-
               <div className="space-y-2">
-                {gym.type === "gym" && (
+                {gym.one_month != null && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">월 이용권</span>
-                    <span className="font-semibold text-primary">{gym.price.monthly.toLocaleString()}원</span>
+                    <span className="text-sm text-muted-foreground">1개월권</span>
+                    <span className="font-semibold text-primary">{Number(gym.one_month).toLocaleString()}원</span>
                   </div>
                 )}
-                {gym.price.pt > 0 && (
+                {gym.three_month != null && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">PT 이용권</span>
-                    <span className="font-semibold text-accent">{gym.price.pt.toLocaleString()}원</span>
+                    <span className="text-sm text-muted-foreground">3개월권</span>
+                    <span className="font-semibold text-primary">{Number(gym.three_month).toLocaleString()}원</span>
+                  </div>
+                )}
+                {gym.pt_ten_times != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">PT 10회</span>
+                    <span className="font-semibold text-accent">{Number(gym.pt_ten_times).toLocaleString()}원</span>
+                  </div>
+                )}
+                {gym.pt_twenty_times != null && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">PT 20회</span>
+                    <span className="font-semibold text-accent">{Number(gym.pt_twenty_times).toLocaleString()}원</span>
                   </div>
                 )}
               </div>
 
-              <Button
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setExpandedGymId(expandedGymId === gym.gym_id ? null : gym.gym_id)}
+                >
+                  {expandedGymId === gym.gym_id ? "접기" : "상세보기"}
+                </Button>
+                <Button 
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                disabled={!gym.available}
-              >
-                {gym.available ? "NFT 회원권 구매" : "매진"}
-              </Button>
+                onClick={() => router.push(`/gyms/payment/${gym.gym_id}`)}
+                >
+                  NFT 회원권 구매
+                </Button>
+              </div>
+
+              {/* 상세 정보: 사업자등록번호, 소개 */}
+              {expandedGymId === gym.gym_id && (
+                <div className="mt-3 space-y-2 rounded-md border border-border/50 p-3 bg-card/60">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">사업자등록번호: </span>
+                    <span className="font-medium">{gym.business_number || "정보 없음"}</span>
+                  </div>
+                  {gym.description && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">소개: </span>
+                      <span className="whitespace-pre-wrap">{gym.description}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {filteredGyms.length === 0 && (
+      {filteredGyms.length === 0 && !isLoading && (
         <Card className="backdrop-blur-sm bg-card/80 border-border/50">
           <CardContent className="p-12 text-center">
             <div className="text-muted-foreground">
