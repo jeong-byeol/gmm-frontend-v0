@@ -7,9 +7,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { supabase } from "@/lib/supabase"
 
 type GymItem = {
   gym_id: string
+  brand_id?: string
   name: string
   address: string
   business_number: string | null
@@ -30,6 +32,7 @@ export default function GymPaymentPage() {
   const [gym, setGym] = useState<GymItem | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSku, setSelectedSku] = useState<string>("")
+  const [isMinting, setIsMinting] = useState(false)
 
   // 가격 옵션 가공
   const priceOptions = useMemo(() => {
@@ -77,20 +80,73 @@ export default function GymPaymentPage() {
 
   const handlePay = async () => {
     try {
+      setIsMinting(true)
       if (!gym) {
         alert("헬스장 정보를 확인할 수 없습니다.")
         return
       }
       if (!selectedSku) {
-        alert("결제할 상품 옵션을 선택해주세요.")
+        alert("민팅할 상품 옵션을 선택해주세요.")
         return
       }
-      // 결제 처리 자리 (결제 PG 연동 전 임시 안내)
-      alert(`${gym.name} - ${priceOptions.find((o) => o.key === selectedSku)?.label} \n결제금액: ${selectedPrice.toLocaleString()}원`)
+      // 결제 처리 자리 (PG 연동 전): 온체인 민팅 + DB 저장 호출
+      const membershipType =
+        selectedSku === "one_month" ? "1MONTH" :
+        selectedSku === "three_month" ? "3MONTH" :
+        selectedSku === "pt_ten_times" ? "10PT" :
+        selectedSku === "pt_twenty_times" ? "20PT" : ""
+
+      // 현재 로그인 사용자 확인 및 DB 사용자 정보 조회
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !user.email) {
+        alert("로그인이 필요합니다.")
+        return
+      }
+      const regRes = await fetch(`/api/register?email=${encodeURIComponent(user.email)}`)
+      const regJson = await regRes.json()
+      if (!regRes.ok || !regJson.user) {
+        alert("사용자 정보를 확인할 수 없습니다. 회원가입을 먼저 완료해주세요.")
+        return
+      }
+      const toAddress: string = regJson.user.wallet_address || ""
+      const userId: string = regJson.user.user_id || ""
+      if (!toAddress) {
+        alert("지갑 주소가 없습니다. 프로필에서 지갑 연동 후 다시 시도해주세요.")
+        return
+      }
+      if (!userId) {
+        alert("사용자 ID를 확인할 수 없습니다.")
+        return
+      }
+
+      const payload = {
+        toAddress,
+        user_id: userId,
+        brand_id: gym.brand_id || "",
+        membership_type: membershipType,
+        price: selectedPrice,
+      }
+
+      const res = await fetch("/api/nft/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "민팅 실패")
+
+      // 민팅 트랜잭션 해시를 콘솔에 출력
+      if (json.txHash) {
+        console.log("[Mint] txHash:", json.txHash)
+      }
+
+      alert("민팅이 완료되었습니다. 내 프로필에서 확인하세요.")
       router.push("/profile")
     } catch (e) {
       console.error(e)
-      alert("결제 처리 중 오류가 발생했습니다.")
+      alert("민팅 처리 중 오류가 발생했습니다.")
+    } finally {
+      setIsMinting(false)
     }
   }
 
@@ -127,7 +183,7 @@ export default function GymPaymentPage() {
 
               <Separator />
 
-              {/* 요약/결제 영역 */}
+              {/* 요약/민팅 영역 */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">선택 상품</span>
@@ -136,11 +192,11 @@ export default function GymPaymentPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-base">
-                  <span className="text-muted-foreground">결제 금액</span>
+                  <span className="text-muted-foreground">금액</span>
                   <span className="font-bold text-primary">{selectedPrice.toLocaleString()}원</span>
                 </div>
-                <Button className="w-full mt-3 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handlePay} disabled={isLoading || !selectedSku}>
-                  결제하기
+                <Button className="w-full mt-3 bg-primary hover:bg-primary/90 text-primary-foreground" onClick={handlePay} disabled={isLoading || !selectedSku || isMinting}>
+                  {isMinting ? "민팅 중..." : "민팅하기"}
                 </Button>
               </div>
             </CardContent>

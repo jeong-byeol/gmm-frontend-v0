@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Dumbbell, LogOut } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { useWeb3AuthDisconnect } from "@web3auth/modal/react"
 
 export function Header() {
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { disconnect, loading: disconnectLoading, error: disconnectError } = useWeb3AuthDisconnect();
 
   // 세션 존재 여부 확인하여 로그아웃 버튼 표시
   useEffect(() => {
@@ -17,17 +19,6 @@ export function Header() {
       setIsLoggedIn(!!user)
     })()
   }, [])
-
-  // 로그아웃 핸들러
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut()
-      router.push("/")
-    } catch (e) {
-      console.error(e)
-      alert("로그아웃 중 오류가 발생했습니다.")
-    }
-  }
 
   return (
     <header className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
@@ -53,10 +44,12 @@ export function Header() {
               관리자
             </Button>
             {isLoggedIn && (
-              <Button variant="ghost" className="text-foreground hover:text-primary" onClick={handleSignOut}>
+              <Button variant="ghost" className="text-foreground hover:text-primary" onClick={() => disconnect()}>
                 <LogOut className="h-4 w-4 mr-2" /> 로그아웃
               </Button>
             )}
+            {disconnectLoading && <div className="loading">Disconnecting...</div>}
+            {disconnectError && <div className="error">{disconnectError.message}</div>}
           </nav>
         </div>
       </div>

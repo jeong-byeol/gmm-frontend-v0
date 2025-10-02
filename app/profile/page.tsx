@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Header } from "@/components/header"
 import { supabase } from "@/lib/supabase"
 
+
 export default function ProfilePage() {
   const router = useRouter()
 
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   const [walletAddress, setWalletAddress] = useState("")
 
   const [isLoading, setIsLoading] = useState(false)
+  const [tokens, setTokens] = useState<Array<any>>([])
 
   // 초기 로딩: Supabase 세션과 /api/register GET으로 유저 데이터 조회
   useEffect(() => {
@@ -45,6 +47,14 @@ export default function ProfilePage() {
           setDisplayName(json.user.name ?? "")
           setDisplayPhone(json.user.phone ?? "")
           setWalletAddress(json.user.wallet_address ?? "")
+          // 토큰 목록 조회
+          if (json.user.user_id) {
+            const tkRes = await fetch(`/api/nft/tokens?user_id=${encodeURIComponent(json.user.user_id)}`)
+            const tkJson = await tkRes.json()
+            if (tkRes.ok) {
+              setTokens(Array.isArray(tkJson.tokens) ? tkJson.tokens : [])
+            }
+          }
         } else {
           // 등록 전 상태인 경우: 구글 프로필 이름을 참고
           const metaName = (user.user_metadata?.full_name || user.user_metadata?.name || "").trim()
@@ -115,6 +125,50 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <Label htmlFor="wallet">지갑 주소</Label>
             <Input id="wallet" value={walletAddress} readOnly className="bg-muted/30" placeholder="미발급" />
+          </div>
+
+          <Separator />
+
+          {/* NFT 보유 현황 */}
+          <div className="space-y-2">
+            <div className="text-lg font-semibold">내 NFT</div>
+            {tokens.length === 0 ? (
+              <div className="text-sm text-muted-foreground">보유한 NFT가 없습니다.</div>
+            ) : (
+              <div className="grid gap-3">
+                {tokens.map((tk) => (
+                  <div key={tk.token_id} className="rounded-md border border-border/50 p-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">토큰 ID</span>
+                      <span className="font-medium">{tk.token_id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">멤버십</span>
+                      <span className="font-medium">{tk.membership_type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">가격</span>
+                      <span className="font-medium">{Number(tk.price).toLocaleString()}원</span>
+                    </div>
+                    {tk.pt_section ? (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">PT 잔여</span>
+                        <span className="font-medium">{tk.pt_section}회</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">기간</span>
+                        <span className="font-medium">{(tk.start_date || '').slice(0,10)} ~ {(tk.end_date || '').slice(0,10)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">상태</span>
+                      <span className="font-medium">{tk.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           </CardContent>
         </Card>

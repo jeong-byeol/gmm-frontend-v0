@@ -1,13 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, type UserData } from "@/lib/supabase";
-import { ethers } from "ethers";
-
-// 지갑 생성 유틸리티
-function generateWalletAddress(): string {
-  // 임의의 이더리움 지갑 주소 생성
-  const wallet = ethers.Wallet.createRandom();
-  return wallet.address;
-}
 
 // GET: 사용자 등록 여부 확인 ?email=
 export async function GET(request: Request) {
@@ -37,7 +29,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: 사용자 등록 { user_id?, name, phone, email }
+// POST: 사용자 등록 { user_id?, name, phone, email, wallet_address? }
 export async function POST(request: Request) {
   try {
     const admin = getSupabaseAdmin();
@@ -47,6 +39,7 @@ export async function POST(request: Request) {
     const phone = (body.phone ?? "").trim();
     const email = (body.email ?? "").trim();
     const userId = (body.user_id ?? "").trim();
+    const walletFromClient = (body.wallet_address ?? "").trim();
 
     if (!name || !phone || !email) {
       return NextResponse.json({ error: "name, phone, email은 필수입니다." }, { status: 400 });
@@ -66,8 +59,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, userAlreadyExists: true });
     }
 
-    // 새 지갑 주소 생성
-    const wallet_address = generateWalletAddress();
+    // 클라이언트에서 전달된 지갑 주소 우선 사용, 없으면 새 지갑 주소 생성
+    const wallet_address = walletFromClient;
     const payload: UserData = {
       user_id: userId || undefined,
       name,
